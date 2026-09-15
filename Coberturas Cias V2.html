@@ -78,13 +78,15 @@ Cada nodo de la red vial se asigna a la compañía que puede alcanzarlo con meno
 </div>
 
 <script>
+// COORDENADAS EXACTAS FIJADAS DIRECTAMENTE
 const STATIONS=[
-  {id:'c1', name:'1ª Compañía', addr:'Patricio Lynch 1866', color:'#b3402c', lat: -40.575008, lon: -73.118297},
-  {id:'c2', name:'2ª Compañía', addr:"Bernardo O'Higgins 909", color:'#2f6fb0', lat: -40.577467, lon: -73.136363},
-  {id:'c3', name:'3ª Compañía', addr:'Av. Juan Mackenna 1259', color:'#3a7d52', lat: -40.575116, lon: -73.128585},
-  {id:'c6', name:'6ª Compañía', addr:'Antofagasta 640', color:'#c68a2e', lat: -40.574658, lon: -73.151469},
-  {id:'c7', name:'7ª Compañía', addr:'Felizardo Asenjo 185', color:'#7a539a', lat: -40.583041, lon: -73.143891},
-  {id:'c8', name:'8ª Compañía', addr:'Avenida Real 1347', color:'#1f8a86', lat:-40.582856, lon: -73.162928}];
+{id:'c1',name:'1ª Compañía',addr:'Patricio Lynch 1866',color:'#b3402c',lat:-40.5794,lon:-73.1301},
+{id:'c2',name:'2ª Compañía',addr:"Bernardo O'Higgins 909",color:'#2f6fb0',lat:-40.5752,lon:-73.1368},
+{id:'c3',name:'3ª Compañía',addr:'Av. Juan Mackenna 1259',color:'#3a7d52',lat:-40.5759,lon:-73.1309},
+{id:'c6',name:'6ª Compañía',addr:'Antofagasta 640',color:'#c68a2e',lat:-40.5694,lon:-73.1415},
+{id:'c7',name:'7ª Compañía',addr:'Felizardo Asenjo 185',color:'#7a539a',lat:-40.5815,lon:-73.1252},
+{id:'c8',name:'8ª Compañía',addr:'Avenida Real 1347',color:'#1f8a86',lat:-40.5888,lon:-73.1185}];
+
 const FUTURE={a:'alsacia',b:'zenteno',label:'Alsacia esq. Av. Zenteno'};
 const BBOX=[-40.62,-73.20,-40.53,-73.06];
 let map,layerGroup,nodes={},adj={},ways=[],edges=[],corners=[];
@@ -194,26 +196,18 @@ if([...a.options].some(x=>x.value===oldA))a.value=oldA;if([...b.options].some(x=
 }
 function companyUI(){let box=document.getElementById('company-list');box.innerHTML='';STATIONS.forEach(s=>{let d=document.createElement('div');d.className='company-row';d.innerHTML=`<input id="toggle-${s.id}" type="checkbox" checked><span class="swatch" style="background:${s.color}"></span><div class="body"><span class="name">${s.name}</span><span class="addr">${s.addr}</span></div>`;box.appendChild(d);d.querySelector('input').onchange=()=>{if(!enabled().length){d.querySelector('input').checked=true;return}pairs();recompute()}})}
 
-async function geocode(q){const u='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=cl&q='+encodeURIComponent(q);const r=await fetch(u,{headers:{'Accept-Language':'es'}});const d=await r.json();return d[0]?{lat:+d[0].lat,lon:+d[0].lon}:null}
 async function roads(){const [s,w,n,e]=BBOX;const q=`[out:json][timeout:60];way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service)$"](${s},${w},${n},${e});out body;>;out skel qt;`;
 for(const host of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.openstreetmap.fr/api/interpreter'])try{let r=await fetch(host,{method:'POST',body:'data='+encodeURIComponent(q)});if(r.ok){let d=await r.json();if(d.elements?.length)return d}}catch(e){}throw Error('No se pudo descargar la red vial.')}
+
 async function main(){
 companyUI();map=L.map('map').setView([-40.574,-73.134],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);layerGroup=L.layerGroup().addTo(map);
 
 try{
 log('Descargando red vial…');osmData=await roads();buildGraph(osmData);log('Red vial cargada.','ok');
 
-// Asigna directamente el nodo más cercano según las lat/lon fijadas en STATIONS
+// Se asigna cada compañía a las coordenadas fijas
 STATIONS.forEach(s=>{if(s.lat!=null)stationNode[s.id]=nearest(s.lat,s.lon)});
 futureNode=intersection(FUTURE.a,FUTURE.b);
-
-// Cargar ubicaciones guardadas
-const savedNodes = JSON.parse(localStorage.getItem('saved_stationNodes') || '{}');
-Object.keys(savedNodes).forEach(id => {
-  if(nodes[savedNodes[id]]) stationNode[id] = savedNodes[id];
-});
-const savedFuture = localStorage.getItem('saved_futureNode');
-if(savedFuture && nodes[savedFuture]) futureNode = savedFuture;
 
 pairs();recompute();log('Mapa de cobertura listo.','ok')
 }catch(e){log(e.message,'err')}
