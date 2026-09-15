@@ -78,14 +78,15 @@ Cada nodo de la red vial se asigna a la compañía que puede alcanzarlo con meno
 </div>
 
 <script>
-// COORDENADAS EXACTAS FIJADAS DIRECTAMENTE
+// CONFIGURACIÓN AUTOMÁTICA POR INTERSECCIÓN DE CALLES
+// Define las dos calles principales que cruzan o bordean el cuartel
 const STATIONS=[
-{id:'c1',name:'1ª Compañía',addr:'Patricio Lynch 1866',color:'#b3402c',lat:-40.5794,lon:-73.1301},
-{id:'c2',name:'2ª Compañía',addr:"Bernardo O'Higgins 909",color:'#2f6fb0',lat:-40.5752,lon:-73.1368},
-{id:'c3',name:'3ª Compañía',addr:'Av. Juan Mackenna 1259',color:'#3a7d52',lat:-40.5759,lon:-73.1309},
-{id:'c6',name:'6ª Compañía',addr:'Antofagasta 640',color:'#c68a2e',lat:-40.5694,lon:-73.1415},
-{id:'c7',name:'7ª Compañía',addr:'Felizardo Asenjo 185',color:'#7a539a',lat:-40.5815,lon:-73.1252},
-{id:'c8',name:'8ª Compañía',addr:'Avenida Real 1347',color:'#1f8a86',lat:-40.5888,lon:-73.1185}];
+{id:'c1',name:'1ª Compañía',addr:'Patricio Lynch / Argomedo',color:'#b3402c',streetA:'lynch',streetB:'argomedo',lat:-40.5794,lon:-73.1301},
+{id:'c2',name:'2ª Compañía',addr:"O'Higgins / Ramírez",color:'#2f6fb0',streetA:"higgins",streetB:'ramírez',lat:-40.5752,lon:-73.1368},
+{id:'c3',name:'3ª Compañía',addr:'Mackenna / Freire',color:'#3a7d52',streetA:'mackenna',streetB:'freire',lat:-40.5759,lon:-73.1309},
+{id:'c6',name:'6ª Compañía',addr:'Antofagasta / Valparaíso',color:'#c68a2e',streetA:'antofagasta',streetB:'valparaíso',lat:-40.5694,lon:-73.1415},
+{id:'c7',name:'7ª Compañía',addr:'Felizardo Asenjo / Real',color:'#7a539a',streetA:'asenjo',streetB:'real',lat:-40.5815,lon:-73.1252},
+{id:'c8',name:'8ª Compañía',addr:'Avenida Real / República',color:'#1f8a86',streetA:'real',streetB:'república',lat:-40.5888,lon:-73.1185}];
 
 const FUTURE={a:'alsacia',b:'zenteno',label:'Alsacia esq. Av. Zenteno'};
 const BBOX=[-40.62,-73.20,-40.53,-73.06];
@@ -130,9 +131,23 @@ while(heap.length){let c=pop();if(c.d!==dist[c.id])continue;(adj[c.id]||[]).forE
 return{dist,owner}
 }
 
+// Búsqueda de la intersección exacta entre dos calles
 function intersection(a,b){
-let A=new Set(),B=new Set();ways.forEach(w=>{let n=w.name.toLowerCase();if(n.includes(a))w.ids.forEach(x=>A.add(x));if(n.includes(b))w.ids.forEach(x=>B.add(x))});
-for(const x of A)if(B.has(x))return x;return null
+let A=new Set(),B=new Set();
+ways.forEach(w=>{
+  let n=w.name.toLowerCase();
+  if(n.includes(a.toLowerCase()))w.ids.forEach(x=>A.add(x));
+  if(n.includes(b.toLowerCase()))w.ids.forEach(x=>B.add(x));
+});
+for(const x of A)if(B.has(x))return x;
+return null;
+}
+
+// Ubicador automático: prueba por intersección de calles, y si falla, recurre a coordenadas
+function autoLocateStation(s){
+  let nodeId = intersection(s.streetA, s.streetB);
+  if(nodeId) return nodeId;
+  return nearest(s.lat, s.lon);
 }
 
 function render(){
@@ -169,12 +184,8 @@ marker.on('dragend', function(e){
   
   if(isFuture){
     futureNode = newNid;
-    localStorage.setItem('saved_futureNode', newNid);
   } else {
     stationNode[s.id] = newNid;
-    const saved = JSON.parse(localStorage.getItem('saved_stationNodes') || '{}');
-    saved[s.id] = newNid;
-    localStorage.setItem('saved_stationNodes', JSON.stringify(saved));
   }
   recompute();
 });
@@ -205,8 +216,8 @@ companyUI();map=L.map('map').setView([-40.574,-73.134],13);L.tileLayer('https://
 try{
 log('Descargando red vial…');osmData=await roads();buildGraph(osmData);log('Red vial cargada.','ok');
 
-// Se asigna cada compañía a las coordenadas fijas
-STATIONS.forEach(s=>{if(s.lat!=null)stationNode[s.id]=nearest(s.lat,s.lon)});
+// UBICACIÓN AUTOMÁTICA DE CADA COMPAÑÍA
+STATIONS.forEach(s=>{ stationNode[s.id] = autoLocateStation(s); });
 futureNode=intersection(FUTURE.a,FUTURE.b);
 
 pairs();recompute();log('Mapa de cobertura listo.','ok')
@@ -214,17 +225,23 @@ pairs();recompute();log('Mapa de cobertura listo.','ok')
 }
 
 document.getElementById('resetPosBtn').onclick=()=>{
-  localStorage.removeItem('saved_stationNodes');
-  localStorage.removeItem('saved_futureNode');
-  STATIONS.forEach(s=>{if(s.lat!=null)stationNode[s.id]=nearest(s.lat,s.lon)});
+  STATIONS.forEach(s=>{ stationNode[s.id] = autoLocateStation(s); });
   futureNode=intersection(FUTURE.a,FUTURE.b);
   recompute();
-  log('Ubicaciones restablecidas a los valores por defecto.','ok');
+  log('Ubicaciones restablecidas a las esquinas por defecto.','ok');
 };
 
 document.getElementById('pairA').onchange=render;document.getElementById('pairB').onchange=render;
 document.getElementById('futureToggle').onchange=recompute;
-document.getElementById('trafficToggle').onchange=()=>{if(osmData){buildGraph(osmData);STATIONS.forEach(s=>{if(s.lat!=null)stationNode[s.id]=nearest(s.lat,s.lon)});futureNode=intersection(FUTURE.a,FUTURE.b);log(document.getElementById('trafficToggle').checked?'Sentido del tránsito ACTIVADO.':'Sentido del tránsito DESACTIVADO.','ok');recompute()}};
+document.getElementById('trafficToggle').onchange=()=>{
+  if(osmData){
+    buildGraph(osmData);
+    STATIONS.forEach(s=>{ stationNode[s.id] = autoLocateStation(s); });
+    futureNode=intersection(FUTURE.a,FUTURE.b);
+    log(document.getElementById('trafficToggle').checked?'Sentido del tránsito ACTIVADO.':'Sentido del tránsito DESACTIVADO.','ok');
+    recompute();
+  }
+};
 main();
 </script>
 </body></html>
