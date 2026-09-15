@@ -199,10 +199,11 @@ async function roads(){const [s,w,n,e]=BBOX;const q=`[out:json][timeout:60];way[
 for(const host of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.openstreetmap.fr/api/interpreter'])try{let r=await fetch(host,{method:'POST',body:'data='+encodeURIComponent(q)});if(r.ok){let d=await r.json();if(d.elements?.length)return d}}catch(e){}throw Error('No se pudo descargar la red vial.')}
 async function main(){
 companyUI();map=L.map('map').setView([-40.574,-73.134],13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);layerGroup=L.layerGroup().addTo(map);
-log('Ubicando cuarteles…');
-for(const s of STATIONS){try{let p=await geocode(s.addr+', Osorno, Chile');if(p){s.lat=p.lat;s.lon=p.lon;log(s.name+' ubicada.','ok')}}catch(e){log(s.name+' no pudo ser ubicada.','warn')}await new Promise(r=>setTimeout(r,800))}
+
 try{
 log('Descargando red vial…');osmData=await roads();buildGraph(osmData);log('Red vial cargada.','ok');
+
+// Asigna directamente el nodo más cercano según las lat/lon fijadas en STATIONS
 STATIONS.forEach(s=>{if(s.lat!=null)stationNode[s.id]=nearest(s.lat,s.lon)});
 futureNode=intersection(FUTURE.a,FUTURE.b);
 
